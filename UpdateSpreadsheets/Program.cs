@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 using System.Net.Http.Headers;
 using UpdateSpreadsheets.Models;
 using System.Text.Json;
+using System.Runtime.InteropServices;
 
 namespace UpdateSpreadsheets
 {
@@ -22,8 +23,36 @@ namespace UpdateSpreadsheets
         static string[] Scopes = { SheetsService.Scope.Spreadsheets };
         static string ApplicationName = "Google Sheets API .NET Quickstart";
         private static readonly HttpClient client = new HttpClient();
+        [DllImport("kernel32.dll")]
+        static extern IntPtr GetConsoleWindow();
+
+        [DllImport("user32.dll")]
+        static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        static extern bool SetForegroundWindow(IntPtr hWnd);
+
+        [DllImport("user32.dll", EntryPoint = "FindWindow", SetLastError = true)]
+        static extern IntPtr FindWindowByCaption(IntPtr zeroOnly, string lpWindowName);
+
+        const int HIDE = 0;
+        const int SHOW = 5;
+
+        static bool SCHEDULE = false;
+
+        public static void DisappearConsole()
+        {
+            ShowWindow(GetConsoleWindow(), HIDE);
+        }
+
         static async Task Main(string[] args)
         {
+            if (args.Length > 0 && args[0] == "--schedule")
+            {
+                DisappearConsole();
+                SCHEDULE = true; 
+            }
             UserCredential credential;
 
             using (var stream =
@@ -74,9 +103,13 @@ namespace UpdateSpreadsheets
                 Console.WriteLine($"Update DOP Total Value Lock (${ reqDopple.TotalValueLock.TvlSum }) to {valueRange.Item2} Successfully !");
 
                 var updatedDate = DateTime.Now.ToString("dd/MM/yyyy hh:mm tt");
-                valueRange = GenerateValueRange(updatedDate, "Summary!F18");
+                valueRange = GenerateValueRange(updatedDate, "API Connector!A5");
                 UpdateGoogleRequest(service, valueRange.Item1, spreadsheetId, valueRange.Item2);
                 Console.WriteLine($"Updated Date (${ updatedDate }) to {valueRange.Item2} Successfully !");
+                if(SCHEDULE)
+                {
+                    Environment.Exit(0);
+                }
             }
             catch (Exception ex)
             {
@@ -84,7 +117,8 @@ namespace UpdateSpreadsheets
                 Console.WriteLine(ex.Message);
             }
             Console.WriteLine("Press any key to exit...");
-            Console.ReadKey();
+            //new ManualResetEvent(false).WaitOne();
+            Environment.Exit(0);
         }
 
         private static UpdateValuesResponse UpdateGoogleRequest(SheetsService service, ValueRange valueRange, string spreadsheetId, string range)
